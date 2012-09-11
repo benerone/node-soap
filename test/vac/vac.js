@@ -1,125 +1,163 @@
 var cfg = {
-    wsdl_file: 'EVacSyncService_SPClient.wsdl',
-    service_url_path: '/services/ESyncNotifySP',
-    service_port: 8007,
-    psp_url: 'http://61.181.22.71:81/admin/if_vac_h'
+  wsdl_file : 'EVacSyncService_SPClient.wsdl',
+  service_url_path : '/services/ESyncNotifySP',
+  service_port : 8007,
+  psp_url : 'http://127.0.0.1/admin/if_vac_h'
 }
-var soap = require('node-soap-ly');
-var path = require('path');
-var http = require('http');
-var QueryString = require('querystring');
-var Request = require('request');
-var moment = require('moment');
-var fs = require('fs');
 
-var reqSeq = 0;
-var defLog = false;
+var soap = require('node-soap-ly')
+  , path = require('path')
+  , http = require('http')
+  , QueryString = require('querystring')
+  , Request = require('request')
+  , moment = require('moment')
+  , fs = require('fs')
+  , reqSeq = 0
+  , defLog = false
+  ;
 
 var SoapServices = {
-    'ESyncNotifySPServiceService': {
-        'ESyncNotifySP': {
-            'eOrderRelationUpdateNotify': function(args) {
-                var fiber = Fiber.current;
-                var oraReqNV = args["eOrderRelationUpdateNotifyRequest"];
-                oraReqNV.SubInfo.split(',').forEach(function(line) {
-                    if (!line) return;
-                    var nv = line.split('=');
-                    if (!nv[0]) return;
-                    oraReqNV[nv[0]] = nv[1];
-                });
-                Request({
-                    uri: cfg.psp_url + '.e',
-                    method: 'post',
-                    headers: {
-                        'Content-Type': "application/x-www-form-urlencoded"
-                    },
-                    body: QueryString.stringify(oraReqNV)
-                },
-                function(error, response, body) {
-                    if (!error && response.statusCode === 200) {
-                        fiber.run({
-                            'eOrderRelationUpdateNotifyResponse': {
-                                'RecordSequenceID': oraReqNV.RecordSequenceID,
-                                'ResultCode': body
-                            }
-                        });
-                    } else {
-                        fiber.run({
-                            'eOrderRelationUpdateNotifyResponse': {
-                                'RecordSequenceID': oraReqNV.RecordSequenceID,
-                                'ResultCode': 1
-                            }
-                        });
-                    }
-                });
-                return yield();
+  'ESyncNotifySPServiceService' : {
+    'ESyncNotifySP' : {
+      'eOrderRelationUpdateNotify' : function(args){
+        var fiber = Fiber.current;
+        var oraReqNV = args["eOrderRelationUpdateNotifyRequest"];
+        /* example request data from EVAC
+         <RecordSequenceID>12345678901</RecordSequenceID>
+         <UserIdType>1</UserIdType>
+         * <UserId>8612312345678</UserId> => gcust_t.billnum
+         <ServiceType>ServiceType</ServiceType>
+         <SpId>SpId</SpId>
+         <ProductId>ProductId</ProductId>
+         * <UpdateType>1</UpdateType> ~=> gcust_t.vac_sts
+         <UpdateTime>20120228163657</UpdateTime>
+         <UpdateDesc>UpdateDesc</UpdateDesc>
+         <LinkID>LinkID</LinkID>
+         <Content>Content</Content>
+         * <EffectiveDate>20120228163657</EffectiveDate> => gcust_t.sdate
+         * <ExpireDate>20120228163657</ExpireDate> => gcust_t.edate
+         <Time_Stamp>20120228163657</Time_Stamp>
+         <EncodeStr>EncodeStr</EncodeStr>
+         <SubInfo>gid=tjuc</SubInfo> =>gcust_t.gid
+         */
+        oraReqNV.SubInfo.split(',').forEach(function(line){
+          if (!line) return;
+          var nv = line.split('=');
+          if (!nv[0]) return;
+          oraReqNV[nv[0]] = nv[1];
+        });
+        Request({
+            uri : cfg.psp_url + '.e',
+            method : 'post',
+            headers : {
+              'Content-Type' : "application/x-www-form-urlencoded"
             },
-            'eMemOrderRelationUpdateNotify': function(args) {
-                var fiber = Fiber.current;
-                args = args["eMemOrderRelationUpdateNotifyRequest"];
-                var oraReqNV = {
-                    'billnum': args.EUserId,
-                    'UpdateType': args.UpdateType,
-                    'ProductId': args.ProductId,
-                    'stime': args.EffectiveDate,
-                    'etime': args.ExpireDate,
-                    'mobile': args.UserId.substr( - 11)
-                };
-                Request({
-                    uri: cfg.psp_url + '.m',
-                    method: 'post',
-                    headers: {
-                        'Content-Type': "application/x-www-form-urlencoded"
-                    },
-                    body: QueryString.stringify(oraReqNV)
-                },
-                function(error, response, body) {
-                    if (!error && response.statusCode === 200) {
-                        fiber.run({
-                            'eMemOrderRelationUpdateNotifyResponse': {
-                                'RecordSequenceID': args.RecordSequenceID,
-                                'ResultCode': body
-                            }
-                        });
-                    } else {
-                        fiber.run({
-                            'eMemOrderRelationUpdateNotifyResponse': {
-                                'RecordSequenceID': args.RecordSequenceID,
-                                'ResultCode': 1
-                            }
-                        });
-                    }
-                });
-                return yield();
+            body : QueryString.stringify(oraReqNV)
+          },
+          function(error, response, body){
+            if (!error && response.statusCode === 200) {
+              fiber.run({
+                'eOrderRelationUpdateNotifyResponse' : {
+                  'RecordSequenceID' : oraReqNV.RecordSequenceID,
+                  'ResultCode' : body
+                }
+              });
+            } else {
+              fiber.run({
+                'eOrderRelationUpdateNotifyResponse' : {
+                  'RecordSequenceID' : oraReqNV.RecordSequenceID,
+                  'ResultCode' : 1
+                }
+              });
             }
-        }
+          });
+        return yield();
+      },
+      'eMemOrderRelationUpdateNotify' : function(args){
+        var fiber = Fiber.current;
+        args = args["eMemOrderRelationUpdateNotifyRequest"];
+        /* example request data from EVAC
+         <RecordSequenceID>12345678902</RecordSequenceID>
+         <UserIdType>1</UserIdType>
+         <UserId>15620009233</UserId> * mobile
+         <ServiceType>ServiceType</ServiceType>
+         <SpId>SpId</SpId>
+         <ProductId>ProductId</ProductId> *
+         <UpdateType>1</UpdateType> *
+         <UpdateTime>UpdateTime</UpdateTime>
+         <UpdateDesc>UpdateDesc</UpdateDesc>
+         <LinkID>LinkID</LinkID>
+         <Content>Content</Content>
+         <EffectiveDate>20120228163657</EffectiveDate> * stime
+         <ExpireDate>20120228163657</ExpireDate> * etime
+         <Time_Stamp>20120228163657</Time_Stamp>
+         <EncodeStr>EncodeStr</EncodeStr>
+         <EUserIdType>1</EUserIdType>
+         <EUserId>8612312345678</EUserId> * billnum
+         */
+        var oraReqNV = {
+          'billnum' : args.EUserId,
+          'UpdateType' : args.UpdateType,
+          'ProductId' : args.ProductId,
+          'stime' : args.EffectiveDate,
+          'etime' : args.ExpireDate,
+          'mobile' : args.UserId.substr(-11)
+        };
+        Request({
+            uri : cfg.psp_url + '.m',
+            method : 'post',
+            headers : {
+              'Content-Type' : "application/x-www-form-urlencoded"
+            },
+            body : QueryString.stringify(oraReqNV)
+          },
+          function(error, response, body){
+            if (!error && response.statusCode === 200) {
+              fiber.run({
+                'eMemOrderRelationUpdateNotifyResponse' : {
+                  'RecordSequenceID' : args.RecordSequenceID,
+                  'ResultCode' : body
+                }
+              });
+            } else {
+              fiber.run({
+                'eMemOrderRelationUpdateNotifyResponse' : {
+                  'RecordSequenceID' : args.RecordSequenceID,
+                  'ResultCode' : 1
+                }
+              });
+            }
+          });
+        return yield();
+      }
     }
+  }
 }
 
-var server = http.createServer(function(req, res) {
-    res.end("404: Not Found: " + request.url);
+var server = http.createServer(function(req, res){
+  res.end("404: Not Found: " + request.url);
 });
 server.listen(cfg.service_port);
 var wsdl_string = require('fs').readFileSync(path.resolve(cfg.wsdl_file), 'utf8');
 var soap_server = soap.listen(server, cfg.service_url_path, SoapServices, wsdl_string);
 
-soap_server.logger_req = function(xml, req, res) {
-    req.__time = moment().format('MMDD-HHmmss');
-    var cip = req.connection.remoteAddress;
-    var filename = 'logs/srv-' + req.__time + '-' + (++reqSeq) + '-' + cip + '-req.log.xml';
-    var ws = fs.createWriteStream(filename);
-    ws.write(xml);
-    ws.end();
+soap_server.logger_req = function(xml, req, res){
+  req.__time = moment().format('MMDD-HHmmss');
+  var cip = req.connection.remoteAddress;
+  var filename = 'logs/srv-' + req.__time + '-' + (++reqSeq) + '-' + cip + '-req.log.xml';
+  var ws = fs.createWriteStream(filename);
+  ws.write(xml);
+  ws.end();
 };
-soap_server.logger_res = function(xml, req, res) {
-    var cip = req.connection.remoteAddress;
-    var filename = 'logs/srv-' + req.__time + '-' + '-' + (++reqSeq) + '-' + cip + '-res.log.xml';
-    var ws = fs.createWriteStream(filename);
-    ws.write(xml);
-    ws.end();
+soap_server.logger_res = function(xml, req, res){
+  var cip = req.connection.remoteAddress;
+  var filename = 'logs/srv-' + req.__time + '-' + '-' + (++reqSeq) + '-' + cip + '-res.log.xml';
+  var ws = fs.createWriteStream(filename);
+  ws.write(xml);
+  ws.end();
 };
 
-setTimeout(function() {
+setTimeout(function(){
     if (!defLog) return;
     var def = soap_server.wsdl.definitions;
     var schema = def.schemas[Object.keys(def.schemas)[0]];
@@ -149,102 +187,102 @@ setTimeout(function() {
     console.log(input);
     console.log('\nportType.method.input.parts=');
     console.log(input.parts);
-},
-0);
+  },
+  0);
 
 var logSeq = 0;
-function do_test(client) {
-    client.logger_req = function(xml) {
-        var time = moment().format('MMDD-HHmmss');
-        var filename = 'logs/cli-' + time + '-' + (++logSeq) + '-req.log.xml';
-        var ws = fs.createWriteStream(filename);
-        ws.write(xml);
-        ws.end();
-    };
-    client.logger_res = function(xml) {
-        var time = moment().format('MMDD-HHmmss');
-        var filename = 'logs/cli-' + time + '-' + '-' + (++logSeq) + '-res.log.xml';
-        var ws = fs.createWriteStream(filename);
-        ws.write(xml);
-        ws.end();
-    };
-    client.ESyncNotifySPServiceService.ESyncNotifySP.eOrderRelationUpdateNotify({
-        "eOrderRelationUpdateNotifyRequest": {
-            "RecordSequenceID": 12345678901,
-            "UserIdType": 1,
-            "UserId": "8612312345678",
-            "ServiceType": "ServiceType",
-            "SpId": "SpId",
-            "ProductId": "ProductId",
-            "UpdateType": 1,
-            "UpdateTime": "20120228163657",
-            "UpdateDesc": "UpdateDesc",
-            "LinkID": "LinkID",
-            "Content": "Content",
-            "EffectiveDate": "20120228163657",
-            "ExpireDate": "20120228163657",
-            "Time_Stamp": "20120228163657",
-            "EncodeStr": "EncodeStr",
-            "SubInfo": "gid=tjuc"
-        }
+function do_test(client){
+  client.logger_req = function(xml){
+    var time = moment().format('MMDD-HHmmss');
+    var filename = 'logs/cli-' + time + '-' + (++logSeq) + '-req.log.xml';
+    var ws = fs.createWriteStream(filename);
+    ws.write(xml);
+    ws.end();
+  };
+  client.logger_res = function(xml){
+    var time = moment().format('MMDD-HHmmss');
+    var filename = 'logs/cli-' + time + '-' + '-' + (++logSeq) + '-res.log.xml';
+    var ws = fs.createWriteStream(filename);
+    ws.write(xml);
+    ws.end();
+  };
+  client.ESyncNotifySPServiceService.ESyncNotifySP.eOrderRelationUpdateNotify({
+      "eOrderRelationUpdateNotifyRequest" : {
+        "RecordSequenceID" : 12345678901,
+        "UserIdType" : 1,
+        "UserId" : "8612312345678",
+        "ServiceType" : "ServiceType",
+        "SpId" : "SpId",
+        "ProductId" : "ProductId",
+        "UpdateType" : 1,
+        "UpdateTime" : "20120228163657",
+        "UpdateDesc" : "UpdateDesc",
+        "LinkID" : "LinkID",
+        "Content" : "Content",
+        "EffectiveDate" : "20120228163657",
+        "ExpireDate" : "20120228163657",
+        "Time_Stamp" : "20120228163657",
+        "EncodeStr" : "EncodeStr",
+        "SubInfo" : "gid=tjuc"
+      }
     },
-    function(err, result, body) {
-        if (err) {
-            console.log(err);
-            return;
-        }
-        console.log(result);
+    function(err, result, body){
+      if (err) {
+        console.log(err);
+        return;
+      }
+      console.log(result);
     });
-    client.ESyncNotifySPServiceService.ESyncNotifySP.eMemOrderRelationUpdateNotify({
-        "eMemOrderRelationUpdateNotifyRequest": {
-            "RecordSequenceID": 12345678902,
-            "UserIdType": 1,
-            "UserId": "15620009233",
-            "ServiceType": "ServiceType",
-            "SpId": "SpId",
-            "ProductId": "ProductId",
-            "UpdateType": 1,
-            "UpdateTime": "UpdateTime",
-            "UpdateDesc": "UpdateDesc",
-            "LinkID": "LinkID",
-            "Content": "Content",
-            "EffectiveDate": "20120228163657",
-            "ExpireDate": "20120228163657",
-            "Time_Stamp": "20120228163657",
-            "EncodeStr": "EncodeStr",
-            "EUserIdType": 1,
-            "EUserId": "8612312345678"
-        }
+  client.ESyncNotifySPServiceService.ESyncNotifySP.eMemOrderRelationUpdateNotify({
+      "eMemOrderRelationUpdateNotifyRequest" : {
+        "RecordSequenceID" : 12345678902,
+        "UserIdType" : 1,
+        "UserId" : "15620009233",
+        "ServiceType" : "ServiceType",
+        "SpId" : "SpId",
+        "ProductId" : "ProductId",
+        "UpdateType" : 1,
+        "UpdateTime" : "UpdateTime",
+        "UpdateDesc" : "UpdateDesc",
+        "LinkID" : "LinkID",
+        "Content" : "Content",
+        "EffectiveDate" : "20120228163657",
+        "ExpireDate" : "20120228163657",
+        "Time_Stamp" : "20120228163657",
+        "EncodeStr" : "EncodeStr",
+        "EUserIdType" : 1,
+        "EUserId" : "8612312345678"
+      }
     },
-    function(err, result) {
-        if (err) {
-            console.log(err);
-            return;
-        }
-        console.log(result);
+    function(err, result){
+      if (err) {
+        console.log(err);
+        return;
+      }
+      console.log(result);
     });
 }
 
 
 if (process.argv[2]) {
-    switch (process.argv[2].toLowerCase()) {
+  switch (process.argv[2].toLowerCase()) {
     case 'log':
-        defLog = true;
-        break;
+      defLog = true;
+      break;
     case 'test':
-        soap.createClient('http://127.0.0.1:' + cfg.service_port + cfg.service_url_path + '?wsdl',
-        function(err, client) {
-            setTimeout(function(){
-                console.log('-- in client ' + Object.keys(client.wsdl));
-                do_test(client);
-            },3);            
+      soap.createClient('http://127.0.0.1:' + cfg.service_port + cfg.service_url_path + '?wsdl',
+        function(err, client){
+          setTimeout(function(){
+            console.log('-- in client ' + Object.keys(client.wsdl));
+            do_test(client);
+          }, 3);
         });
-    }
+  }
 } else {
-    console.log("Usage: node vac.js [test|log]");
-    console.log('test will make test requests;');
-    console.log('log will log parsed wsdl definition parts;');
-    console.log();
+  console.log("Usage: node vac.js [test|log]");
+  console.log('test will make test requests;');
+  console.log('log will log parsed wsdl definition parts;');
+  console.log();
 }
 
 

@@ -8,52 +8,52 @@ var moment = require('moment');
 var fs = require('fs');
 
 var SoapServices = {
-    'QueryUserInfoServiceApply': {
-        'QueryUserInfoServiceApplyHttpPort': {
-            'QueryUserInfoServiceApply': function(args) {
-                var fiber = Fiber.current;
-                console.log('received args = ');
-                console.log(args);
-                return ({
-                    'tns:ServerInfo': {
-                        'ResultCode': '0',
-                        'Description': 'success'
-                    },
-                    'tns:UserInfo': {
-                        'UserName': '15620001781'
-                    }
-                });
-            }
-        }
+  'QueryUserInfoServiceApply' : {
+    'QueryUserInfoServiceApplyHttpPort' : {
+      'QueryUserInfoServiceApply' : function(args){
+        var fiber = Fiber.current;
+        console.log('received args = ');
+        console.log(args);
+        return ({
+          'tns:ServerInfo' : {
+            'ResultCode' : '0',
+            'Description' : 'success'
+          },
+          'tns:UserInfo' : {
+            'UserName' : '15620001781'
+          }
+        });
+      }
     }
+  }
 }
 
-var server = http.createServer(function(req, res) {
-    res.end("404: Not Found: " + request.url);
+var server = http.createServer(function(req, res){
+  res.end("404: Not Found: " + request.url);
 });
 
 
 server.listen(cfg.fake_port);
 var wsdl_string = require('fs').readFileSync(path.resolve(cfg.wsdl_file), 'utf8');
 var soap_server = soap.listen(server, cfg.path, SoapServices, wsdl_string);
-soap_server.logger_req = function(xml, req, res) {
-    req.__time = moment().format('MMDD-HHmmss');
-    var cip = req.connection.remoteAddress;
-    var filename = 'logs/svr-' + req.__time + '-' + cip + '-req.log.xml';
-    var ws = fs.createWriteStream(filename);
-    ws.write(xml);
-    ws.end();
+soap_server.logger_req = function(xml, req, res){
+  req.__time = moment().format('MMDD-HHmmss');
+  var cip = req.connection.remoteAddress;
+  var filename = 'logs/svr-' + req.__time + '-' + cip + '-req.log.xml';
+  var ws = fs.createWriteStream(filename);
+  ws.write(xml);
+  ws.end();
 };
-soap_server.logger_res = function(xml, req, res) {
-    var cip = req.connection.remoteAddress;
-    var filename = 'logs/svr-' + req.__time + '-' + cip + '-res.log.xml';
-    var ws = fs.createWriteStream(filename);
-    ws.write(xml);
-    ws.end();
+soap_server.logger_res = function(xml, req, res){
+  var cip = req.connection.remoteAddress;
+  var filename = 'logs/svr-' + req.__time + '-' + cip + '-res.log.xml';
+  var ws = fs.createWriteStream(filename);
+  ws.write(xml);
+  ws.end();
 };
 
 var defLog = false;
-setTimeout(function() {
+setTimeout(function(){
     if (!defLog) return;
     var def = soap_server.wsdl.definitions;
     var message = def.messages[Object.keys(def.messages)[0]];
@@ -73,17 +73,17 @@ setTimeout(function() {
     console.log(binding.methods[Object.keys(binding.methods)[0]]);
     console.log('\nportType.method=');
     console.log(portType.methods[Object.keys(portType.methods)[0]]);
-},
-0);
+  },
+  0);
 
 if (process.argv[2]) {
-    switch (process.argv[2].toLowerCase()) {
+  switch (process.argv[2].toLowerCase()) {
     case 'deflog':
-        defLog = true;
-        break;
-    }
+      defLog = true;
+      break;
+  }
 } else {
-    console.log("Usage: node fake_server.js [deflog]");
-    console.log('[deflog] will log parsed wsdl definition parts;');
-    console.log();
+  console.log("Usage: node fake_server.js [deflog]");
+  console.log('[deflog] will log parsed wsdl definition parts;');
+  console.log();
 }
